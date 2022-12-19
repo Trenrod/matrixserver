@@ -11,9 +11,9 @@
 ### Install ansible in virtual environment
 
 ```sh
-# Make sure you are in the Deployment directory
+# Make sure you are in the deployment directory
 # pwd
-# {Project}/Deployment
+# {Project}/deployment
 
 # Install virtual environment locally
 python3 -m venv .venv
@@ -30,9 +30,9 @@ pip install -r requirements.txt
 ### Add ssh key to access matrix server via ansible
 
 ```sh
-# Make sure you are in the Deployment directory
+# Make sure you are in the deployment directory
 # pwd
-# {Project}/Deployment
+# {Project}/deployment
 
 # Copy private pem
 cp {Filepath to your private pem} ./keys/matrix_key.pem
