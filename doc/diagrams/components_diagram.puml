@@ -26,8 +26,6 @@ System_Boundary(jumpserver, "Deployment server", "Jump server where ansible depl
     Container(ansible, "Ansible", "Ansible, Python3", "Deployment scripts.")
 }
 
-' System(matrixserver, "Matrix system", "Fully deployed and ready to use matrix server")
-
 System_Ext(mailprovider, "Mail Provider", "Sends and receives emails from and to customers and administrator")
 System_Ext(github, "Github", "Source code from multiple self developed matrix services.")
 
@@ -35,7 +33,8 @@ System_Ext(github, "Github", "Source code from multiple self developed matrix se
 System_Ext(github, "Github", "Souce code hosted on github", $sprite="github_original")
 
 Rel(user, caddy2, "Interact with matrix client interface", "https")
-Rel(admin, caddy2, "Interact with matrix admin interface", "https")
+Rel(user, coturn, "Optional encrypted audio and video streams", "https")
+Rel(admin, caddy2, "Interact with matrix admin interface", "srtp")
 Rel(developer, github, "pushes source", "https | ssh")
 
 Rel(ansible, github, "fetches sourcecode", "ssh")
@@ -43,7 +42,6 @@ Rel(ansible, github, "fetches sourcecode", "ssh")
 Rel(admin, ansible, "Triggers deployments", "ssh")
 Rel(ansible, matrixserver, "Deploys and updates components", "ssh")
 
-Rel(matrixserver, github, "Sends mails", "smtp")
 Rel(matrix, mailprovider, "Sends mails", "smtp")
 
 @enduml
