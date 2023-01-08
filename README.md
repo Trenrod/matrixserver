@@ -9,13 +9,10 @@ To achieve this
   - No custom code just configuration
   - Automatic rollout of custom applications (AS)
 
-## [Hot to deploy](./deployment/README.md)
+## [How to deploy](./deployment/README.md)
 
 ## Features
 
-Those are focused features.
-
-### Feature status v1 - Basic features
 - [X] Only official docker images are used
 - [X] Out of the box synapse deployment
 - [X] Automatic TLS generation and renewal with caddy
@@ -23,25 +20,7 @@ Those are focused features.
 - [X] Postgres included
 - [X] Encrypted audio and video with coturn and certificates (caddy)
 
-### Feature status v1.1 - Refactoring
-- [!] Using github Milestones/Projects for status tracking
-- [ ] Better certificate generation get rid of workaround for coturn to access caddy certificates
-- [ ] TBD...
-
-### Feature status v2 - Feature deployments
-- [ ] Application service deployments/updates
-- [ ] TBD...
-
-### Feature status v3 - Maintanance
-- [ ] CI/CD
-- [ ] Backup
-- [ ] Monitoring
-- [ ] TBD...
-
-### Feature status v4 - Scaling
-- [ ] Nomand/Consul
-- [ ] Vault
-- [ ] TBD...
+## [Roadmap](https://github.com/Trenrod/matrixserver/projects?query=is%3Aopen)
 
 ## Overview
 
