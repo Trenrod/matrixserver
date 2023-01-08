@@ -2,53 +2,230 @@
   hosts: matrixserver
 
   tasks:
-    - name: Install, configure, and start docker
-      block:
-      - name: Install aptitude
-        apt:
-          name: aptitude
-          state: latest
-          update_cache: true
+    - name: Install docker
+      include_role:
+        name: install_docker
 
-      - name: Install required system packages
-        apt:
-          pkg:
-            - apt-transport-https
-            - ca-certificates
-            - curl
-            - software-properties-common
-            - python3-pip
-            - virtualenv
-            - python3-setuptools
-          state: latest
-          update_cache: true
+    - name: Include vars of caddy_vars.yaml into the 'caddy' variable
+      ansible.builtin.include_vars:
+        file: vars/caddy_vars.yaml
+        name: caddy
 
-      - name: Add Docker GPG apt Key
-        apt_key:
-          url: https://download.docker.com/linux/ubuntu/gpg
-          state: present
-      
-      - name: Add Docker Repository for {{ ansible_distribution_release }}
-        apt_repository:
-          repo: deb https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
-          state: present
+    - name: Include vars of synapse_vars.yaml into the 'synapse' variable
+      ansible.builtin.include_vars:
+        file: vars/synapse_vars.yaml
+        name: synapse
 
-      - name: Update apt and install docker-ce
-        apt:
-          name: docker-ce
-          state: latest
-          update_cache: true
-
-      - name: Install Docker Module for Python
-        pip:
-          name: docker
-
-      - name: Start service docker, if not started, and make sure its started on bootup
-        ansible.builtin.service:
-          name: docker
-          state: started
-          enabled: true
-
+    - name: Create Caddy user
+      ansible.builtin.user:
+        name: '{{ caddy.user }}'
+        system: true
+        createhome: true
+        home: '{{ caddy.home_dir }}'
+      register: caddy_user_details
       become: true
-      become_user: root
 
+    - name: Copy file with owner and permissions
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/files/Caddyfile.j2"
+        dest: "{{ caddy.file }}"
+        owner: "{{ caddy.user }}"
+        mode: '0644'
+      become: true
+      register: register_caddyfile
+
+    - name: Create synapse db init file
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/files/10_synapse_db.sh.j2"
+        dest: "{{ synapse.db_init_file_path }}"
+        owner: "{{ ansible_user }}"
+        mode: '0444'
+    
+    - name: Create synapse volume
+      community.docker.docker_volume:
+        name: matrixserver_synapse-data
+      become: true
+      register: register_synapse_data
+
+    - name: Debug it
+      ansible.builtin.debug:
+        var: register_synapse_data.volume.Mountpoint
+
+    - name: Copy synapse config files
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/files/matrix_config/homeserver.yaml.j2"
+        dest: "{{ register_synapse_data.volume.Mountpoint }}/homeserver.yaml"
+        owner: "{{ ansible_user }}"
+        mode: '0444'
+      become: true
+
+    - name: Copy synape config file
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/files/matrix_config/{{synapse.base_url}}.log.config"
+        dest: "{{ register_synapse_data.volume.Mountpoint }}/{{synapse.base_url}}.log.config"
+        owner: "{{ ansible_user }}"
+        mode: '0444'
+      become: true
+
+    - name: Copy synape key file
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/files/matrix_config/{{ synapse.base_url }}.signing.key"
+        dest: "{{ register_synapse_data.volume.Mountpoint }}/{{ synapse.base_url }}.signing.key"
+        owner: "{{ ansible_user }}"
+        mode: '0444'
+      become: true
+
+    - name: Give insecure permissions to an existing file
+      ansible.builtin.file:
+        path: "{{ register_synapse_data.volume.Mountpoint }}/"
+        mode: '1777'
+      become: true
+
+    - name: Start caddy docker container
+      community.docker.docker_compose:
+        project_name: MatrixServer
+        definition:
+          version: "3"
+          services:
+            caddy:
+              image: caddy:2.6
+              restart: unless-stopped
+              volumes:
+                - "{{ caddy.file }}:/etc/caddy/Caddyfile"
+                - "caddy_data:/data"
+                - "caddy_config:/config"
+              ports:
+                - "80:80"
+                - "443:443"
+                # Synapse path
+                - "8448:8448"
+              depends_on:
+                - synapse
+              networks:
+                - frontend
+            coturn:
+              image: coturn/coturn
+              network_mode: host
+              volumes:
+                # Certificate storage
+                - "caddy_data:/data:ro"
+              command:
+                - --use-auth-secret
+                - --static-auth-secret={{synapse.coturn_static_auth_secret}}
+                - --realm=turn.{{ synapse.base_url }}
+                # Make sure >= tls 1.2 is used
+                - --no-tlsv1_1	
+                - --no-tlsv1
+                # VoIP traffic is all UDP. There is no reason to let users connect to arbitrary TCP endpoints via the relay.
+                - --no-tcp-relay
+                # don't let the relay ever try to connect to private IP address ranges within your network (if any)
+                # given the turn server is likely behind your firewall, remember to include any privileged public IPs too.
+                - --denied-peer-ip=10.0.0.0-10.255.255.255
+                - --denied-peer-ip=192.168.0.0-192.168.255.255
+                - --denied-peer-ip=172.16.0.0-172.31.255.255
+                # special case the turn server itself so that client->TURN->TURN->client flows work
+                - --allowed-peer-ip=10.0.0.1
+                # consider whether you want to limit the quota of relayed streams per user (or total) to avoid risk of DoS.
+                - --user-quota=12 # 4 streams per video call, so 12 streams = 3 simultaneous relayed calls per user.
+                - --total-quota=1200
+                # Cert provided by caddy
+                - --cert=/data/caddy/certificates/acme-v02.api.letsencrypt.org-directory/turn.{{ synapse.base_url }}/turn.{{ synapse.base_url }}.crt
+                # Key provided by caddy
+                - --pkey=/data/caddy/certificates/acme-v02.api.letsencrypt.org-directory/turn.{{ synapse.base_url }}/turn.{{ synapse.base_url }}.key
+              # Just for information which ports are consumed from host
+              # ports:
+              #   - 3478:3478
+              #   - 3478:3478/udp
+              #   - 5349:5349
+              #   - 5349:5349/udp
+              #   - 49152-65535:49152-65535/udp
+            postgres:
+              image: postgres
+              restart: always
+              environment:
+                POSTGRES_PASSWORD: "{{synapse.postgres_master_password}}"
+                POSTGRES_USER: "{{synapse.postgres_master_user}}"
+                POSTGRES_DB: "{{synapse.postgres_default_db_name}}"
+                PGDATA: /var/lib/postgresql/data/pgdata
+              volumes:
+                - "{{ synapse.db_init_file_path }}:/docker-entrypoint-initdb.d/10_synapse_db.sh"
+                - postgres-data:/var/lib/postgresql/data/pgdata
+              # Not not allow access to the db from outside
+              # ports:
+              #   - "5432:5432"
+              networks:
+                - backend
+            synapse:
+              image: matrixdotorg/synapse:latest
+              restart: unless-stopped
+              volumes:
+                - "synapse-data:/data"
+              networks:
+                - frontend
+                - backend
+              depends_on:
+                - postgres
+              healthcheck:
+                test: ["CMD", "curl", "-fSs", "http://localhost:8008/health"]
+                interval: 15s
+                timeout: 5s
+                retries: 3
+                start_period: 5s
+          networks:
+            frontend:
+              driver: bridge
+            backend:
+              driver: bridge
+          volumes:
+            caddy_data: {}
+            synapse-data: {}
+            caddy_config: {}
+            postgres-data: {}
+      become: true
+      register: output
+
+    - name: Restart caddy in case caddy file has changed
+      community.docker.docker_container:
+        name: matrixserver_caddy_1
+        state: started
+        restart: true
+      become: true
+      when: register_caddyfile.changed
+
+    # Give coturn user access to turn.[matrix server] cert and key from caddy
+    # As caddy runs as root(like) and coturn as nobody:x:65534:65534:
+
+    - name: Get infos on volume
+      community.docker.docker_volume_info:
+        name: matrixserver_caddy_data
+      register: result
+      become: true
+
+    - name: Check for turn file
+      ansible.builtin.wait_for:
+        timeout: 180
+        path: "{{result.volume.Mountpoint}}/caddy/certificates/acme-v02.api.letsencrypt.org-directory/turn.{{ synapse.base_url }}/turn.{{ synapse.base_url }}.key"
+        state: present
+      become: true
+      register: register_turn_cert
+
+    - name: Chown certificates from caddy
+      file:
+        path: "{{ item.file }}"
+        group: "65534"
+        mode: g=rx
+      loop:
+        - { file: "{{result.volume.Mountpoint}}/caddy/certificates/" }
+        - { file: "{{result.volume.Mountpoint}}/caddy/certificates/acme-v02.api.letsencrypt.org-directory/" }
+        - { file: "{{result.volume.Mountpoint}}/caddy/certificates/acme-v02.api.letsencrypt.org-directory/turn.{{ synapse.base_url }}/" }
+        - { file: "{{result.volume.Mountpoint}}/caddy/certificates/acme-v02.api.letsencrypt.org-directory/turn.{{ synapse.base_url }}/turn.{{ synapse.base_url }}.key" }
+        - { file: "{{result.volume.Mountpoint}}/caddy/certificates/acme-v02.api.letsencrypt.org-directory/turn.{{ synapse.base_url }}/turn.{{ synapse.base_url }}.crt" }
+      become: true
+
+    - name: Restart coturn in case new certificates are available
+      community.docker.docker_container:
+        name: matrixserver_coturn_1
+        state: started
+        restart: true
+      become: true
+      when: register_turn_cert.changed

@@ -1,0 +1,12 @@
+#!/bin/bash
+set -e
+
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+	CREATE ROLE {{synapse.synape_db_user}} WITH LOGIN PASSWORD '{{synapse.synape_db_password}}';
+    CREATE DATABASE {{synapse.synape_db_name}}
+        WITH OWNER "{{synapse.synape_db_user}}"
+        ENCODING "UTF8"
+        LOCALE "C"
+        TEMPLATE "template0";
+	GRANT ALL PRIVILEGES ON DATABASE {{synapse.synape_db_name}} TO {{synapse.synape_db_user}};
+EOSQL

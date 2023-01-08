@@ -1,0 +1,5 @@
+---
+# defaults file for caddy
+user: caddydocker
+home_dir: /home/caddydocker
+file: /home/caddydocker/Caddyfile

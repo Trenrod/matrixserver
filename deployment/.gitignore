@@ -1,2 +1,3 @@
 .venv
 inventory.ini
+vars/synapse_vars.yaml

@@ -1,0 +1,49 @@
+@startuml component_diagram
+
+title Component diagram
+
+!define ICONURL https://raw.githubusercontent.com/tupadr3/plantuml-icon-font-sprites/v2.4.0
+!includeurl ICONURL/devicons2/postgresql.puml 
+!includeurl ICONURL/devicons2/github_original.puml
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+Person(user, "Consumer", "Communicates with other consumers via matrix. Using mobile, web or destop matrix client.")
+Person(admin, "Administrator", "Matrix system maintainer")
+Person(developer, "Developer", "Develops services for matrix system.")
+
+System_Boundary(matrixserver, "Matrix system", "Fully deployed and ready to use matrix server") {
+    Container(caddy2, "Caddy2", "Caddy2, Docker, TLS, Certificates", "Reverse proxy. Redirects to internal containers. Creates and renews certificates.")
+    Container(matrix, "Matrix server", "Matrix, Synapse, Docker, Python3", "Synapse a Matrix server implementation.")
+    Container(postgresql, "PostgreSql DB", "Matrix, Synapse, Docker, Python3", "Synapse a Matrix server implementation.", $sprite="postgresql")
+    Container(coturn, "Coturn", "Turn instance", "Relaying audio/video traffic between peers")
+
+    Rel(matrix, postgresql, "persists data", "tcp")
+    Rel(caddy2, matrix, "forwards requests", "http")
+}
+
+System_Boundary(jumpserver, "Deployment server", "Jump server where ansible deploys the matrix server and its dependencies.") {
+    Container(ansible, "Ansible", "Ansible, Python3", "Deployment scripts.")
+}
+
+' System(matrixserver, "Matrix system", "Fully deployed and ready to use matrix server")
+
+System_Ext(mailprovider, "Mail Provider", "Sends and receives emails from and to customers and administrator")
+System_Ext(github, "Github", "Source code from multiple self developed matrix services.")
+
+
+System_Ext(github, "Github", "Souce code hosted on github", $sprite="github_original")
+
+Rel(user, caddy2, "Interact with matrix client interface", "https")
+Rel(admin, caddy2, "Interact with matrix admin interface", "https")
+Rel(developer, github, "pushes source", "https | ssh")
+
+Rel(ansible, github, "fetches sourcecode", "ssh")
+
+Rel(admin, ansible, "Triggers deployments", "ssh")
+Rel(ansible, matrixserver, "Deploys and updates components", "ssh")
+
+Rel(matrixserver, github, "Sends mails", "smtp")
+Rel(matrix, mailprovider, "Sends mails", "smtp")
+
+@enduml

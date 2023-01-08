@@ -1,0 +1,58 @@
+---
+- name: Get Service Status
+  ansible.builtin.systemd:
+    name: 'docker'
+  register: docker_service_status
+
+- name: Install, configure, and start docker
+  block:
+    - name: Install aptitude
+      apt:
+        name: aptitude
+        state: latest
+        update_cache: true
+
+    - name: Install required system packages
+      apt:
+        pkg:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+          - python3-pip
+          - virtualenv
+          - python3-setuptools
+        state: latest
+        update_cache: true
+
+    - name: Add Docker GPG apt Key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker Repository for {{ ansible_distribution_release }}
+      apt_repository:
+        repo: deb https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
+        state: present
+
+    - name: Update apt and install docker-ce
+      apt:
+        name: docker-ce
+        state: latest
+        update_cache: true
+
+    - name: Install Docker Module for Python
+      pip:
+        name:
+          - docker
+          - 'docker-compose'
+
+    - name: Start service docker, if not started, and make sure its started on bootup
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+  become: true
+  become_user: root
+  when: docker_service_status.status.ActiveState != "active"

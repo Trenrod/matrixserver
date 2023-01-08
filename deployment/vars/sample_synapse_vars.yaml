@@ -1,0 +1,23 @@
+---
+# Check every variable here to customize your own synapse configuration
+# [...] needs to be changed
+
+# base matrix url awesome.to will result in matrix.awesome.to
+base_url: [awesome.to]
+# defaults file for caddy
+db_init_file_path: /home/{{ansible_user}}/10_synapse_db.sh
+# Defauld DB settings (TODO simple way to beeing able not to use them)
+postgres_master_user: adminuser
+postgres_master_password: [admin_password]
+postgres_default_db_name: defaultdb
+# Database for synapse
+synape_db_user: synapse_user
+synape_db_password: [synapse_db_password]
+synape_db_name: synapse
+# Email SMTP connection
+smtp_user: [smtp_user]
+smtp_pass: [smtp_password]
+smtp_host: [smtp_host]
+smtp_port: 587
+# Coturn static auth secret
+coturn_static_auth_secret: [static_sync_key_for_coturn]

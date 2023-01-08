@@ -1,0 +1,26 @@
+@startuml context_diagram
+
+title Context Diagram
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+Person(user, "Consumer", "Communicates with other consumers via matrix. Using mobile, web or destop matrix client.")
+Person(admin, "Administrator", "Matrix system maintainer")
+Person(developer, "Developer", "Develops services for matrix system.")
+
+System(matrixserver, "Matrix system", "Fully deployed and ready to use matrix server")
+System(jumpserver, "Deployment server", "Jump server where ansible deploys the matrix server and its dependencies.")
+
+System_Ext(mailprovider, "Mail Provider", "Sends and receives emails from and to customers and administrator")
+System_Ext(github, "Github", "Source code from multiple self developed matrix services.")
+
+Rel(user, matrixserver, "uses", "https")
+Rel(admin, jumpserver, "uses", "ssh")
+
+Rel(developer, github, "uses", "https | ssh")
+Rel(matrixserver, mailprovider, "uses", "smtp")
+
+Rel_L(jumpserver, matrixserver, "deploys", "ssh")
+Rel_R(jumpserver, github, "fetches", "ssh")
+
+@enduml
