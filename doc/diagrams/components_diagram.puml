@@ -33,8 +33,8 @@ System_Ext(github, "Github", "Source code from multiple self developed matrix se
 System_Ext(github, "Github", "Souce code hosted on github", $sprite="github_original")
 
 Rel(user, caddy2, "Interact with matrix client interface", "https")
-Rel(user, coturn, "Optional encrypted audio and video streams", "https")
-Rel(admin, caddy2, "Interact with matrix admin interface", "srtp")
+Rel(user, coturn, "Optional encrypted audio and video streams", "srtp")
+Rel(admin, caddy2, "Interact with matrix admin interface", "http")
 Rel(developer, github, "pushes source", "https | ssh")
 
 Rel(ansible, github, "fetches sourcecode", "ssh")
